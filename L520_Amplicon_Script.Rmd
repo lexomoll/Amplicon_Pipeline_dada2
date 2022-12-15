@@ -1,0 +1,115 @@
+---
+title: "L520_16S_Script"
+author: "Lexi Mollica"
+date: "2022-11-10"
+output: html_document
+---
+
+Start by loading libraries
+
+```{r}
+library(dada2)
+library(ggplot2)
+library(phyloseq)
+```
+
+Set working directory, path, and name samples. This can be changed for different samples
+
+setwd("C:/Users/lexim/Desktop/L520_16S/MollicaV4V5/Hole_1")
+
+#working directory is set as object called "path", which is used as a variable in the following code
+path <- "C:/Users/lexim/Desktop/L520_16S/MollicaV4V5/Hole_1"
+
+#list all sequencing files
+list.files(path)
+
+```{r}
+# Forward and reverse fastq filenames have format: SAMPLENAME_R1_001.fastq and SAMPLENAME_R2_001.fastq
+#make an object with forward reads (fnFs)
+#make an object with reverse reads (fnRs)
+#this can be changed if reads come in a different format
+fnFs <- sort(list.files(path, pattern="_R1_001.fastq", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern="_R2_001.fastq", full.names = TRUE))
+
+
+# Extract sample names, assuming filenames have format: SAMPLENAME_XXX.fastq
+sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
+```
+
+# Now we're going to inspect read quality profiles
+```{r}
+# Start by visualizing quality profiles of the forward & reverse reads
+plotQualityProfile(fnFs[1:4])
+plotQualityProfile(fnRs[1:4])
+
+# visually look at the quality of the reads
+# 20% is about the expected cutoff point for quality
+```
+
+# filter and trim reads
+```{r}
+# WHAT TO TRUNCATE DEPENDS ON THE SAMPLE
+# If you are using a less-overlapping primer set, like V1-V2 or V3-V4, your truncLen must be large enough to maintain 20 + biological.length.variation nucleotides of overlap between them
+
+# Place filtered files in filtered/ subdirectory
+filtFs <- file.path(path, "filtered", paste0(sample.names, "_F_filt.fastq.gz"))
+filtRs <- file.path(path, "filtered", paste0(sample.names, "_R_filt.fastq.gz"))
+
+# filter and trim reads
+# pay attention to truncation length (truncLen)
+# THIS STEP IS ALWAYS DIFFERENT DEPENDING ON READS
+# if things aren't working later on, try changing the following parameters
+
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(295,230),
+                     maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
+                     compress=TRUE, multithread=FALSE, trimLeft = c(17,21)) # On Windows set multithread=FALSE
+head(out)
+```
+
+# learn errors
+```{r}
+# this step takes a long time
+errF <- learnErrors(filtFs, multithread=FALSE, MAX_CONSIST=20) #for my own dataset, I'd like to add MAX_CONSIST=20 if it doesn't find convergence at 10
+errR <- learnErrors(filtFs, multithread=FALSE, MAX_CONSIST=20)
+
+# you can do this instead of graphing
+dada2:::checkConvergence(errF)
+dada2:::checkConvergence(errR)
+```
+
+# DEREPLICATION (DO THIS for 1.8 version of dada2, which we have)
+derepFs <- derepFastq(filtFs, verbose=TRUE)
+derepRs <- derepFastq(filtRs, verbose=TRUE)
+
+# Name the derep-class objects by the sample names
+names(derepFs) <- sample.names
+names(derepRs) <- sample.names
+
+# SAMPLE INTERFERENCE
+# this is where it picks apart unique sequences
+dadaFs <- dada(derepFs, err=errF, multithread=FALSE)
+dadaRs <- dada(derepRs, err=errR, multithread=FALSE)
+
+# you can switch to a server around this point if you need to !!
+
+# inspect the data to see what's up
+dadaFs[[1]]
+
+# merge paired end reads
+mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
+
+# Inspect the merger data.frame from the first sample
+head(mergers[[1]])
+
+# construct sequence table
+# We can now construct an amplicon sequence variant table (ASV) table, a higher-resolution version of the OTU table produced by traditional methods.
+# probably save this table as a csv or something for my own data
+seqtab <- makeSequenceTable(mergers)
+dim(seqtab)
+
+# Inspect distribution of sequence lengths
+# cant get this to work, try skipping??
+# keep getting this error: Error in if (class(object) == "DNAStringSet") { : the condition has length > 1
+table(nchar(getSequences(seqtab)))
+
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=FALSE, verbose=TRUE)

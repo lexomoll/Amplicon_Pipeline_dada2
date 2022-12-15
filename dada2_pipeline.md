@@ -8,13 +8,13 @@ setwd("C:/Users/lexim/Desktop/Binf_F22_R/Assignment3")
 #### working directory is set as object called "path", which is used as a variable in the following code
 path <- "C:/Users/lexim/Desktop/Binf_F22_R/Assignment3"
 
+
 #### list all sequencing files
 list.files(path)
 
 
 #### Forward and reverse fastq filenames have format: SAMPLENAME_R1_001.fastq and SAMPLENAME_R2_001.fastq
-#make an object with forward reads (fnFs)
-#make an object with reverse reads (fnRs)
+#make an object with forward reads (fnFs) and reverse reads (fnRs)
 #this can be changed if reads come in a different format
 fnFs <- sort(list.files(path, pattern="_R1_001.fastq", full.names = TRUE))
 fnRs <- sort(list.files(path, pattern="_R2_001.fastq", full.names = TRUE))
@@ -23,7 +23,7 @@ fnRs <- sort(list.files(path, pattern="_R2_001.fastq", full.names = TRUE))
 #### Extract sample names, assuming filenames have format: SAMPLENAME_XXX.fastq
 sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
 
-### Now we're going to inspect read quality profiles
+#### Now we're going to inspect read quality profiles
 #### Start by visualizing quality profiles of the forward & reverse reads
 plotQualityProfile(fnFs[1:12])
 plotQualityProfile(fnRs[1:12])
@@ -38,7 +38,7 @@ plotQualityProfile(fnRs[1:12])
 filtFs <- file.path(path, "filtered", paste0(sample.names, "_F_filt.fastq.gz"))
 filtRs <- file.path(path, "filtered", paste0(sample.names, "_R_filt.fastq.gz"))
 
-### filter and trim reads
+#### filter and trim reads
 #### pay attention to truncation length (truncLen)
 #### THIS STEP IS ALWAYS DIFFERENT DEPENDING ON READS
 #### if things aren't working later on, try changing the following parameters
@@ -57,7 +57,7 @@ errR <- learnErrors(filtFs, multithread=FALSE, MAX_CONSIST=20)
 dada2:::checkConvergence(errF)
 dada2:::checkConvergence(errR)
 
-### DEREPLICATION
+#### Dereplication
 derepFs <- derepFastq(filtFs, verbose=TRUE)
 derepRs <- derepFastq(filtRs, verbose=TRUE)
 
@@ -65,7 +65,7 @@ derepRs <- derepFastq(filtRs, verbose=TRUE)
 names(derepFs) <- sample.names
 names(derepRs) <- sample.names
 
-### SAMPLE INTERFERENCE
+#### Sample interference
 #### this is where it picks apart unique sequences
 dadaFs <- dada(derepFs, err=errF, multithread=FALSE)
 dadaRs <- dada(derepRs, err=errR, multithread=FALSE)
@@ -75,13 +75,13 @@ dadaRs <- dada(derepRs, err=errR, multithread=FALSE)
 #### inspect the data to see what's up
 dadaFs[[1]]
 
-### merge paired end reads
+#### merge paired end reads
 mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
 
 #### Inspect the merger data.frame from the first sample
 head(mergers[[1]])
 
-### construct sequence table with ASVs
+#### construct sequence table with ASVs
 #### probably save this table as a csv or something for my own data
 seqtab <- makeSequenceTable(mergers)
 dim(seqtab)
@@ -89,7 +89,7 @@ dim(seqtab)
 #### Inspect distribution of sequence lengths
 table(nchar(getSequences(seqtab)))
 
-### remove chimeras
+#### remove chimeras
 seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=FALSE, verbose=TRUE)
 dim(seqtab.nochim)
 sum(seqtab.nochim)/sum(seqtab)
@@ -107,7 +107,7 @@ colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "n
 rownames(track) <- sample.names
 head(track)
 
-### Assign taxonomy finally, woo! You have to download your reference database! Always use the most recent. I like the Silva. 
+#### Assign taxonomy finally, woo! You have to download your reference database! Always use the most recent. I like the Silva. 
 #### can be downloaded here: https://benjjneb.github.io/dada2/training.html
 
 #### TROUBLESHOOTING - make sure you have placed the file in the path, sometimes R studio will read this from where it is installed
@@ -119,7 +119,7 @@ taxa.print <- taxa # Removing sequence rownames for display only
 rownames(taxa.print) <- NULL
 head(taxa.print)
 
-### SAVING AS YOU GO 
+#### SAVING AS YOU GO 
 #### we should save our taxa file ( has our ASVs and their ID), and the seqtab.nochim file which lists our seqs without chimeras. Also we should save the transposed seqtab.nochim.
 
 write.csv(taxa, file="C:/Users/lexim/Desktop/Binf_F22_R/Assignment3/L520_taxa.csv")
@@ -135,7 +135,8 @@ write.csv(OTUabund, file="C:/Users/lexim/Desktop/Binf_F22_R/Assignment3/L520_OTU
 #### note to self: we can recall already processed files and continue on from here:)
 
 
-### time to PLOT !!
+#### Time to PLOT !!
+
 #### load these packages for plotting
 
 library(phyloseq); packageVersion("phyloseq")
@@ -154,7 +155,7 @@ ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE),
                tax_table(taxa))
 ps
 
-### ok make a table that includes ASVs too, because that's what we care about
+#### Make a table that includes ASVs too, because that's what we care about
 dna <- Biostrings::DNAStringSet(taxa_names(ps))
 names(dna) <- taxa_names(ps)
 ps <- merge_phyloseq(ps, dna)
@@ -199,7 +200,7 @@ taxa_abundance_table_phylum <- psmelt(ps1_phylum_relabun)
 write.csv(taxa_abundance_table_phylum, file="C:/Users/lexim/Desktop/Binf_F22_R/Assignment3/taxa_abundance_table_phylum.csv")
 
 
-### you can open this file and go from here if needed!
+#### you can open this file and go from here if needed!
 #### taxa_abundance_table_phylum <- read.csv("taxa_abundance_table_phylum.csv")
 
 taxa_abundance_table_phylum$Phylum<-factor(taxa_abundance_table_phylum$Phylum)
@@ -222,8 +223,7 @@ ggplot(data=taxa_abundance_table_phylum,mapping=aes(x=Sample,y=Abundance*100,)) 
         axis.text.y = element_text(face="bold", size=10, angle=0),
         axis.title.y = element_text(face="bold")) 
 
-### plot by order
-#### we'll do the same thing as abpve but want to count everything that is the same order
+#### Plot by order - we'll do the same thing as abpve but want to count everything that is the same order
 ps_order <- tax_glom(ps, "Order")
 ps1_order_relabun <- transform_sample_counts(ps_order, function(ASV) ASV/sum(ASV))
 taxa_abundance_table_order <- psmelt(ps1_order_relabun)
@@ -245,15 +245,14 @@ ggplot(data=taxa_abundance_table_order,mapping=aes(x=Sample,y=Abundance*100,)) +
         axis.text.y = element_text(face="bold", size=10, angle=0),
         axis.title.y = element_text(face="bold"))
 
-### I want to see if there's any overlap in ASVs between my sample and control and I think I want to look at this at the genus level
-#### produce a table identified to the genus level, and then sort by abundance to see if there are any ovelapping ASVs
+#### I want to see if there's any overlap in ASVs between my sample and control and I think I want to look at this at the genus level. Produce a table identified to the genus level, and then sort by abundance to see if there are any ovelapping ASVs
+
 ps_genus <- tax_glom(ps, "Genus")
 ps1_genus_relabun <- transform_sample_counts(ps_genus, function(ASV) ASV/sum(ASV))
 taxa_abundance_table_genus <- psmelt(ps1_genus_relabun)
 write.csv(taxa_abundance_table_genus, file="C:/Users/lexim/Desktop/Binf_F22_R/Assignment3/taxa_abundance_table_genus.csv")
 
-### ok lets make a better plot
-#### plot rel abundance of phyla as abundant-dependent points
+#### The plots before were super basic, but this is the actual plot we want to use in publications and at conferences. Plot rel abundance of phyla as abundant-dependent points
 ggplot(data=taxa_abundance_table_phylum,mapping=aes(x=Sample, y=Phylum)) +
   geom_point() +
   (aes(size = Abundance, colour=Phylum)) +
